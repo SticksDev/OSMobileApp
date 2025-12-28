@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
+import '../services/ws_client.dart';
 import '../models/device_with_shockers.dart';
 import '../models/shared_user.dart';
 import '../models/shared_shocker.dart';
@@ -26,6 +27,7 @@ class OverviewScreen extends StatefulWidget {
 
 class _OverviewScreenState extends State<OverviewScreen> {
   final ApiClient _apiClient = ApiClient();
+  OpenShockClient? _wsClient;
   List<DeviceWithShockers> _devices = [];
   List<SharedUser> _sharedUsers = [];
   bool _isLoading = true;
@@ -50,6 +52,90 @@ class _OverviewScreenState extends State<OverviewScreen> {
     }
 
     _loadShockers();
+    _connectWebSocket();
+  }
+
+  Future<void> _connectWebSocket() async {
+    try {
+      // Get session key from API client
+      final sessionKey = await _apiClient.getSessionKey();
+      if (sessionKey == null) {
+        Logger.error(
+          'No session key available for WebSocket',
+          tag: 'OverviewScreen',
+        );
+        CustomSnackbar.error(
+          context,
+          title: 'WebSocket Connection Failed',
+          description: 'No session key available.',
+        );
+
+        return;
+      }
+
+      final apiHost = _apiClient.baseUrl;
+
+      // Initialize WebSocket client
+      _wsClient = OpenShockClient(
+        apiHost: apiHost,
+        sessionKey: sessionKey,
+        userAgent: 'OpenShockMobile/1.0.0',
+      );
+
+      // Register for DeviceStatus events
+      await _wsClient!.start();
+      _wsClient!.registerForwarder('DeviceStatus');
+
+      // Listen for DeviceStatus events
+      _wsClient!.onMethod('DeviceStatus').listen((event) {
+        Logger.log(
+          'DeviceStatus event received: ${event.args}',
+          tag: 'OverviewScreen',
+        );
+        print('DeviceStatus event: ${event.args}');
+      });
+
+      // Send DeviceStatus command with empty data
+      Logger.log('Sending DeviceStatus command', tag: 'OverviewScreen');
+      final success = await _wsClient!.sendCommand('DeviceStatus');
+
+      if (success) {
+        Logger.log(
+          'WebSocket connected and DeviceStatus sent successfully',
+          tag: 'OverviewScreen',
+        );
+
+        CustomSnackbar.success(
+          context,
+          title: 'WebSocket Connected',
+          description: 'Real-time updates are now enabled.',
+        );
+      } else {
+        Logger.error(
+          'Failed to send DeviceStatus command',
+          tag: 'OverviewScreen',
+        );
+
+        CustomSnackbar.error(
+          context,
+          title: 'WebSocket Connection Failed',
+          description: 'Could not send DeviceStatus command.',
+        );
+      }
+    } catch (e, stackTrace) {
+      Logger.error(
+        'Failed to connect WebSocket',
+        tag: 'OverviewScreen',
+        error: e,
+        stackTrace: stackTrace,
+      );
+
+      CustomSnackbar.error(
+        context,
+        title: 'WebSocket Connection Failed',
+        description: e.toString(),
+      );
+    }
   }
 
   Future<void> _loadShockers() async {
@@ -141,6 +227,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _wsClient?.dispose();
     super.dispose();
   }
 

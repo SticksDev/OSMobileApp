@@ -155,6 +155,42 @@ class ApiClient {
   };
 
   // -------------------------
+  // Session Management
+  // -------------------------
+
+  /// Get the OpenShock session key from cookies
+  Future<String?> getSessionKey() async {
+    await _ensureInitialized();
+
+    try {
+      final uri = Uri.parse(_baseUrl);
+      final cookies = await _cookieJar.loadForRequest(uri);
+
+      // Look for the OpenShock session cookie
+      final sessionCookie = cookies.firstWhere(
+        (cookie) => cookie.name == 'openShockSession',
+        orElse: () => Cookie('', ''),
+      );
+
+      if (sessionCookie.value.isNotEmpty) {
+        Logger.log('Found session key from cookie', tag: _tag);
+        return sessionCookie.value;
+      }
+
+      Logger.log('No session key found in cookies', tag: _tag);
+      return null;
+    } catch (e, stackTrace) {
+      Logger.error(
+        'Failed to get session key',
+        tag: _tag,
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
+  }
+
+  // -------------------------
   // API calls
   // -------------------------
 
