@@ -1,0 +1,10 @@
+swagger_to_dart:
+  input_directory: spec.json
+  output_directory: lib/api
+  model:
+    support_generic_arguments: true
+    union_class_fallback_name: fallback
+    enum_fallback_type: first
+  api_client:
+    base_api_client_class_name: OpenShockAPIClient
+    use_class_for_query_parameters: true

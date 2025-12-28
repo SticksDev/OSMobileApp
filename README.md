@@ -1,69 +1,16 @@
-# OpenShock Mobile App
+# openshock_mobile
 
-The OpenShock mobile app is built using **Flutter**, a cross-platform UI toolkit that enables a seamless experience on both iOS and Android devices. OpenShock allows users to manage and control their OpenShock-enabled devices efficiently, providing a responsive and high-performance interface.
+A new Flutter project.
 
-# Download
+## Getting Started
 
-You can download the app from the [Google play store](https://play.google.com/store/apps/details?id=app.openshock.mobile)
+This project is a starting point for a Flutter application.
 
-## Tech Stack
+A few resources to get you started if this is your first Flutter project:
 
-- **Flutter**: Cross-platform UI framework to build a native mobile app for iOS and Android from a single codebase.
-- **Dart**: Programming language used for the app, offering a strong typing system and reactive model for UI development.
-- **Dio**: Used for making HTTP requests and managing API calls with headers like `OpenShockToken` for backend integration.
-- **Shared Preferences**: Lightweight key-value storage used for saving user settings and device information locally.
+- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
 
-## How to Build the Project
-
-To build the OpenShock mobile app, follow the steps below:
-
-### Prerequisites
-
-Make sure you have the following installed on your development environment:
-- [Flutter SDK](https://flutter.dev/docs/get-started/install)
-- [Dart SDK](https://dart.dev/get-dart)
-- A code editor like [VS Code](https://code.visualstudio.com/) or [Android Studio](https://developer.android.com/studio)
-
-### Steps to Build
-
-1. **Clone the Repository**  
-   ```
-   git clone https://github.com/OpenShock/MobileApp
-   cd MobileApp
-   ```
-
-2. **Install Dependencies**  
-   After navigating to the project directory, run:
-   ```
-   flutter pub get
-   ```
-
-3. **Run the App**  
-   Connect an iOS or Android device or start an emulator, then run the following command to launch the app:
-   ```
-   flutter run
-   ```
-
-4. **Build for Production**  
-   To build the app for production, use:
-   ```
-   flutter build appbundle   # Android
-   flutter build ios   # iOS
-   ```
-
-## How to Contribute
-
-1. **Fork the Repository**: Start by forking the OpenShock mobile app repo to your own GitHub account.
-2. **Set Up Your Environment**:
-   - Ensure you have the latest version of Flutter installed.
-   - Clone the repo and run `flutter pub get` to install dependencies.
-3. **Branch & Develop**:
-   - Create a new branch for your feature or bug fix.
-   - Follow the existing code style and structure, keeping your code clean and modular.
-4. **Submit a Pull Request**: Once you've completed your changes, submit a pull request for review.
-
-Feel free to report issues or request new features using the [Issues](https://github.com/OpenShock/MobileApp/issues) tab in GitHub.
-
----
-
-Happy Coding!
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.

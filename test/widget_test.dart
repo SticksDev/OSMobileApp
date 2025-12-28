@@ -1,15 +1,11 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility that Flutter provides. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter_test/flutter_test.dart';
+import 'package:openshock_mobile/main.dart';
 
 void main() {
-  testWidgets('Placeholder', (WidgetTester tester) async {
-    // Verify that our counter has incremented.
-    expect(true, true);
+  testWidgets('App loads splash screen', (WidgetTester tester) async {
+    await tester.pumpWidget(const OpenShockApp());
+
+    // Verify that the splash screen shows the app name
+    expect(find.text('OpenShock'), findsOneWidget);
   });
 }
