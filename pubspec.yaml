@@ -29,6 +29,8 @@ dependencies:
   # UI Utilities
   flutter_svg: ^2.2.3
   signalr_core: ^1.1.2
+  flat_buffers: ^25.9.23
+  web_socket_channel: ^2.4.5
 
 dev_dependencies:
   flutter_test:

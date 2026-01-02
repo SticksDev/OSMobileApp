@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../services/ws_client.dart';
 import '../models/device_with_shockers.dart';
 import '../models/shared_user.dart';
-import '../models/shared_shocker.dart';
+import '../models/device_status.dart';
 import '../utils/logger.dart';
 import '../widgets/custom_snackbar.dart';
 import '../widgets/loading_state.dart';
@@ -15,8 +13,8 @@ import '../widgets/overview/filter_bar_widget.dart';
 import '../widgets/overview/shocker_card_widget.dart';
 import '../widgets/overview/empty_state_widget.dart';
 import '../widgets/overview/error_state_widget.dart';
-import 'login_screen.dart';
 import 'settings_screen.dart';
+import 'hub_setup_screen.dart';
 
 class OverviewScreen extends StatefulWidget {
   const OverviewScreen({super.key});
@@ -35,6 +33,9 @@ class _OverviewScreenState extends State<OverviewScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   Set<ShockerFilter> _activeFilters = {ShockerFilter.all};
+
+  // Store device statuses that arrive before devices are loaded
+  final Map<String, DeviceStatus> _pendingDeviceStatuses = {};
 
   @override
   void initState() {
@@ -92,36 +93,14 @@ class _OverviewScreenState extends State<OverviewScreen> {
           'DeviceStatus event received: ${event.args}',
           tag: 'OverviewScreen',
         );
-        print('DeviceStatus event: ${event.args}');
+        _handleDeviceStatusUpdate(event.args);
       });
 
-      // Send DeviceStatus command with empty data
-      Logger.log('Sending DeviceStatus command', tag: 'OverviewScreen');
-      final success = await _wsClient!.sendCommand('DeviceStatus');
-
-      if (success) {
-        Logger.log(
-          'WebSocket connected and DeviceStatus sent successfully',
-          tag: 'OverviewScreen',
-        );
-
-        CustomSnackbar.success(
-          context,
-          title: 'WebSocket Connected',
-          description: 'Real-time updates are now enabled.',
-        );
-      } else {
-        Logger.error(
-          'Failed to send DeviceStatus command',
-          tag: 'OverviewScreen',
-        );
-
-        CustomSnackbar.error(
-          context,
-          title: 'WebSocket Connection Failed',
-          description: 'Could not send DeviceStatus command.',
-        );
-      }
+      CustomSnackbar.success(
+        context,
+        title: 'WebSocket Connected',
+        description: 'Real-time updates are now enabled.',
+      );
     } catch (e, stackTrace) {
       Logger.error(
         'Failed to connect WebSocket',
@@ -134,6 +113,82 @@ class _OverviewScreenState extends State<OverviewScreen> {
         context,
         title: 'WebSocket Connection Failed',
         description: e.toString(),
+      );
+    }
+  }
+
+  void _handleDeviceStatusUpdate(List<Object?>? args) {
+    try {
+      // Args is a list containing a single element which is the device status list
+      if (args == null || args.isEmpty || args[0] is! List) {
+        Logger.error(
+          'Invalid DeviceStatus format: expected List<dynamic> with nested list',
+          tag: 'OverviewScreen',
+        );
+        return;
+      }
+
+      final statusList = args[0] as List<dynamic>;
+      final deviceStatuses = statusList
+          .whereType<Map<String, dynamic>>()
+          .map((json) => DeviceStatus.fromJson(json))
+          .toList();
+
+      Logger.log(
+        'Processing ${deviceStatuses.length} device status updates',
+        tag: 'OverviewScreen',
+      );
+
+      // Store statuses and update devices
+      for (final status in deviceStatuses) {
+        _pendingDeviceStatuses[status.deviceId] = status;
+      }
+
+      // Update device online status if devices are already loaded
+      if (_devices.isNotEmpty) {
+        setState(() {
+          for (final status in deviceStatuses) {
+            Logger.log(
+              'Looking for device with ID: ${status.deviceId}',
+              tag: 'OverviewScreen',
+            );
+            Logger.log(
+              'Available device IDs: ${_devices.map((d) => d.id).join(", ")}',
+              tag: 'OverviewScreen',
+            );
+
+            final deviceIndex =
+                _devices.indexWhere((device) => device.id == status.deviceId);
+
+            if (deviceIndex != -1) {
+              _devices[deviceIndex] = _devices[deviceIndex].copyWith(
+                isOnline: status.online,
+                firmwareVersion: status.firmwareVersion,
+              );
+              Logger.log(
+                'Updated device ${_devices[deviceIndex].name}: online=${status.online}, fw=${status.firmwareVersion}',
+                tag: 'OverviewScreen',
+              );
+            } else {
+              Logger.log(
+                'Device not yet loaded, status stored for later: ${status.deviceId}',
+                tag: 'OverviewScreen',
+              );
+            }
+          }
+        });
+      } else {
+        Logger.log(
+          'Devices not loaded yet, storing ${deviceStatuses.length} status updates for later',
+          tag: 'OverviewScreen',
+        );
+      }
+    } catch (e, stackTrace) {
+      Logger.error(
+        'Failed to process DeviceStatus update',
+        tag: 'OverviewScreen',
+        error: e,
+        stackTrace: stackTrace,
       );
     }
   }
@@ -155,6 +210,29 @@ class _OverviewScreenState extends State<OverviewScreen> {
         if (ownResponse.isSuccess && sharedResponse.isSuccess) {
           _devices = ownResponse.data ?? [];
           _sharedUsers = sharedResponse.data ?? [];
+
+          // Apply any pending device statuses that arrived before devices were loaded
+          if (_pendingDeviceStatuses.isNotEmpty) {
+            Logger.log(
+              'Applying ${_pendingDeviceStatuses.length} pending device status updates',
+              tag: 'OverviewScreen',
+            );
+
+            for (var i = 0; i < _devices.length; i++) {
+              final status = _pendingDeviceStatuses[_devices[i].id];
+              if (status != null) {
+                _devices[i] = _devices[i].copyWith(
+                  isOnline: status.online,
+                  firmwareVersion: status.firmwareVersion,
+                );
+                Logger.log(
+                  'Applied pending status to device ${_devices[i].name}: online=${status.online}',
+                  tag: 'OverviewScreen',
+                );
+              }
+            }
+          }
+
           Logger.log(
             'Loaded ${_devices.length} own devices and ${_sharedUsers.length} shared users',
             tag: 'OverviewScreen',
@@ -175,20 +253,33 @@ class _OverviewScreenState extends State<OverviewScreen> {
     }
   }
 
-  List<dynamic> _getFilteredShockers() {
-    // Combine own and shared shockers
-    final ownShockers = _devices.expand((device) => device.shockers).toList();
+  List<Map<String, dynamic>> _getFilteredShockers() {
+    // Combine own and shared shockers with device info
+    final ownShockers = _devices.expand((device) {
+      return device.shockers.map((shocker) => {
+            'shocker': shocker,
+            'device': device,
+            'isShared': false,
+          });
+    }).toList();
+
     final sharedShockers = _sharedUsers
         .expand((user) => user.devices)
-        .expand((device) => device.shockers)
-        .toList();
+        .expand((device) {
+      return device.shockers.map((shocker) => {
+            'shocker': shocker,
+            'device': null, // Shared devices don't expose device info
+            'isShared': true,
+          });
+    }).toList();
 
-    List<dynamic> allShockers = [...ownShockers, ...sharedShockers];
+    List<Map<String, dynamic>> allShockers = [...ownShockers, ...sharedShockers];
 
     // Apply filters
     if (!_activeFilters.contains(ShockerFilter.all)) {
-      allShockers = allShockers.where((shocker) {
-        final isShared = shocker is SharedShocker;
+      allShockers = allShockers.where((item) {
+        final shocker = item['shocker'];
+        final isShared = item['isShared'] as bool;
         final isPaused = shocker.isPaused as bool;
 
         // Check ownership filter
@@ -215,8 +306,10 @@ class _OverviewScreenState extends State<OverviewScreen> {
     if (_searchQuery.isNotEmpty) {
       allShockers = allShockers
           .where(
-            (shocker) =>
-                shocker.name.toLowerCase().contains(_searchQuery.toLowerCase()),
+            (item) => item['shocker']
+                .name
+                .toLowerCase()
+                .contains(_searchQuery.toLowerCase()),
           )
           .toList();
     }
@@ -235,6 +328,18 @@ class _OverviewScreenState extends State<OverviewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const HubSetupScreen(),
+            ),
+          );
+        },
+        backgroundColor: Colors.blue,
+        tooltip: 'Add Hub',
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1A1A1A),
         elevation: 0,
@@ -351,8 +456,12 @@ class _OverviewScreenState extends State<OverviewScreen> {
               padding: const EdgeInsets.all(16),
               itemCount: filteredShockers.length,
               itemBuilder: (context, index) {
-                final shocker = filteredShockers[index];
-                return ShockerCardWidget(shocker: shocker);
+                final item = filteredShockers[index];
+                return ShockerCardWidget(
+                  shocker: item['shocker'],
+                  device: item['device'],
+                  wsClient: _wsClient,
+                );
               },
             ),
     );

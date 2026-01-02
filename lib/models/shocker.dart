@@ -19,8 +19,8 @@ class Shocker {
     return Shocker(
       id: json['id'] as String,
       name: json['name'] as String,
-      rfId: json['rfId'] as String?,
-      model: json['model'] as String?,
+      rfId: json['rfId']?.toString(),
+      model: json['model']?.toString(),
       createdOn: DateTime.parse(json['createdOn'] as String),
       isPaused: json['isPaused'] as bool? ?? false,
     );

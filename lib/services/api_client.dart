@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
@@ -20,7 +19,7 @@ class ApiClient {
 
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
-  late final Dio _dio;
+  late Dio _dio;
   late CookieJar _cookieJar;
 
   String _baseUrl;
@@ -37,10 +36,14 @@ class ApiClient {
 
   Future<void> setBaseUrl(String baseUrl) async {
     _baseUrl = baseUrl;
-    await _ensureInitialized();
 
-    // Make sure Dio uses the updated base URL.
-    _dio.options.baseUrl = _baseUrl;
+    // If already initialized, we need to reinitialize Dio with the new base URL
+    if (_initialized) {
+      _initializeDio();
+      await _loadCookiesFromSecureStorage();
+    } else {
+      await _ensureInitialized();
+    }
   }
 
   Future<void> _ensureInitialized() async {

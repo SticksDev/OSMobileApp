@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import '../../models/shocker.dart';
 import '../../models/shared_shocker.dart';
+import '../../models/device_with_shockers.dart';
+import '../../services/ws_client.dart';
+import 'shocker_control_sheet.dart';
 
 class ShockerCardWidget extends StatelessWidget {
   final dynamic shocker;
+  final DeviceWithShockers? device;
+  final OpenShockClient? wsClient;
 
   const ShockerCardWidget({
     super.key,
     required this.shocker,
+    this.device,
+    this.wsClient,
   });
 
   String _formatDate(DateTime date) {
@@ -44,19 +51,34 @@ class ShockerCardWidget extends StatelessWidget {
       createdOn = shocker.createdOn;
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isShared
-              ? Colors.blue.withValues(alpha: 0.3)
-              : Colors.white.withValues(alpha: 0.1),
+    return GestureDetector(
+      onTap: () {
+        if (wsClient != null) {
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: Colors.transparent,
+            isScrollControlled: true,
+            builder: (context) => ShockerControlSheet(
+              shocker: shocker,
+              device: device,
+              wsClient: wsClient!,
+            ),
+          );
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isShared
+                ? Colors.blue.withValues(alpha: 0.3)
+                : Colors.white.withValues(alpha: 0.1),
+          ),
         ),
-      ),
-      child: Column(
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -84,13 +106,60 @@ class ShockerCardWidget extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (device != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: device!.isOnline
+                                  ? Colors.blue.withValues(alpha: 0.2)
+                                  : Colors.red.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: device!.isOnline
+                                    ? Colors.blue.withValues(alpha: 0.5)
+                                    : Colors.red.withValues(alpha: 0.5),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  device!.isOnline ? Icons.circle : Icons.circle,
+                                  size: 8,
+                                  color: device!.isOnline ? Colors.blue : Colors.red,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  device!.isOnline ? 'Online' : 'Offline',
+                                  style: TextStyle(
+                                    color: device!.isOnline ? Colors.blue : Colors.red,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Row(
@@ -114,11 +183,14 @@ class ShockerCardWidget extends StatelessWidget {
                               size: 14,
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              'RF ID: $rfId',
-                              style: const TextStyle(
-                                color: Colors.white30,
-                                fontSize: 12,
+                            Flexible(
+                              child: Text(
+                                'RF ID: $rfId',
+                                style: const TextStyle(
+                                  color: Colors.white30,
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -131,11 +203,14 @@ class ShockerCardWidget extends StatelessWidget {
                               ),
                             ),
                           if (model != null)
-                            Text(
-                              model,
-                              style: const TextStyle(
-                                color: Colors.white30,
-                                fontSize: 12,
+                            Flexible(
+                              child: Text(
+                                model,
+                                style: const TextStyle(
+                                  color: Colors.white30,
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                         ],
@@ -166,24 +241,49 @@ class ShockerCardWidget extends StatelessWidget {
               ),
             ],
           ),
-          if (createdOn != null) ...[
+          if (createdOn != null || (device != null && device!.firmwareVersion != null)) ...[
             const SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
               children: [
-                const Icon(
-                  Icons.calendar_today,
-                  color: Colors.white30,
-                  size: 14,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Created: ${_formatDate(createdOn)}',
-                  style: const TextStyle(color: Colors.white30, fontSize: 12),
-                ),
+                if (createdOn != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.calendar_today,
+                        color: Colors.white30,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Created: ${_formatDate(createdOn)}',
+                        style: const TextStyle(color: Colors.white30, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                if (device != null && device!.firmwareVersion != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.memory,
+                        color: Colors.white30,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'FW: ${device!.firmwareVersion}',
+                        style: const TextStyle(color: Colors.white30, fontSize: 12),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ],
         ],
+      ),
       ),
     );
   }

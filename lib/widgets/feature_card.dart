@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class FeatureCard extends StatelessWidget {
-  const FeatureCard({
+  const FeatureCard({super.key, 
     required this.icon,
     required this.title,
     required this.description,
