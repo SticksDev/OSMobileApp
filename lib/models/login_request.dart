@@ -1,16 +1,19 @@
 class LoginRequest {
-  final String email;
+  final String usernameOrEmail;
   final String password;
+  final String turnstileResponse;
 
   LoginRequest({
-    required this.email,
+    required this.usernameOrEmail,
     required this.password,
+    required this.turnstileResponse,
   });
 
   Map<String, dynamic> toJson() {
     return {
-      'email': email,
+      'usernameOrEmail': usernameOrEmail,
       'password': password,
+      'turnstileResponse': turnstileResponse,
     };
   }
 }

@@ -1,42 +1,39 @@
 import 'dart:convert';
 
-/// Model for all secure storage data (credentials, cookies, etc.)
 class SecureStorageData {
-  final String? email;
-  final String? password;
+  final String? apiToken;
   final String? sessionCookies;
 
-  SecureStorageData({
-    this.email,
-    this.password,
+  const SecureStorageData({
+    this.apiToken,
     this.sessionCookies,
   });
 
   factory SecureStorageData.fromJson(Map<String, dynamic> json) {
     return SecureStorageData(
-      email: json['email'] as String?,
-      password: json['password'] as String?,
+      apiToken: json['apiToken'] as String?,
       sessionCookies: json['sessionCookies'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'email': email,
-      'password': password,
+      'apiToken': apiToken,
       'sessionCookies': sessionCookies,
     };
   }
 
   SecureStorageData copyWith({
-    String? email,
-    String? password,
+    String? apiToken,
     String? sessionCookies,
+    bool clearApiToken = false,
+    bool clearSessionCookies = false,
   }) {
     return SecureStorageData(
-      email: email ?? this.email,
-      password: password ?? this.password,
-      sessionCookies: sessionCookies ?? this.sessionCookies,
+      apiToken: clearApiToken ? null : (apiToken ?? this.apiToken),
+      sessionCookies: clearSessionCookies
+          ? null
+          : (sessionCookies ?? this.sessionCookies),
     );
   }
 
@@ -48,6 +45,6 @@ class SecureStorageData {
   }
 
   static SecureStorageData empty() {
-    return SecureStorageData();
+    return const SecureStorageData();
   }
 }

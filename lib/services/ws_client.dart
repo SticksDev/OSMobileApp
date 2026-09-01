@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:signalr_core/signalr_core.dart';
 
+import '../models/control_type.dart';
 import '../utils/logger.dart';
 
 /// Example event envelope for stream output
@@ -18,6 +19,9 @@ class OpenShockHubEvent {
 
 class OpenShockClient {
   final String apiHost;
+
+  /// Value of the `openShockSession` cookie. The hub is authenticated with the
+  /// session rather than an API token, matching the cookie-based login flow.
   final String sessionKey;
 
   final Dio dio;
@@ -177,14 +181,15 @@ class OpenShockClient {
     String id,
     int intensity,
     int duration,
-    int action,
+    ControlType action,
   ) async {
     final c = _connection;
     if (c == null) return false;
 
     final data = <String, dynamic>{
       'Id': id,
-      'Type': action,
+      // Must be the API's ControlType value, not a zero-based index.
+      'Type': action.value,
       'Duration': duration,
       'Intensity': intensity,
     };

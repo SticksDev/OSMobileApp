@@ -58,8 +58,9 @@ class _OverviewScreenState extends State<OverviewScreen> {
 
   Future<void> _connectWebSocket() async {
     try {
-      // Get session key from API client
+      // The hub is authenticated with the session cookie set at login.
       final sessionKey = await _apiClient.getSessionKey();
+      if (!mounted) return;
       if (sessionKey == null) {
         Logger.error(
           'No session key available for WebSocket',
@@ -80,7 +81,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
       _wsClient = OpenShockClient(
         apiHost: apiHost,
         sessionKey: sessionKey,
-        userAgent: 'OpenShockMobile/1.0.0',
+        userAgent: ApiClient.userAgent,
       );
 
       // Register for DeviceStatus events
@@ -96,6 +97,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
         _handleDeviceStatusUpdate(event.args);
       });
 
+      if (!mounted) return;
       CustomSnackbar.success(
         context,
         title: 'WebSocket Connected',
@@ -109,6 +111,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
         stackTrace: stackTrace,
       );
 
+      if (!mounted) return;
       CustomSnackbar.error(
         context,
         title: 'WebSocket Connection Failed',

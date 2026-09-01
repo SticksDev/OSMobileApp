@@ -38,57 +38,27 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       await _applyStoredHostIfAny();
-
       final cookieJar = await _apiClient.cookieJar;
       final cookies = await cookieJar.loadForRequest(
         Uri.parse(_apiClient.baseUrl),
       );
 
-      // First, check if we have saved session cookies
-      if (cookies.isNotEmpty) {
-        Logger.log(
-          'Found saved session cookies, validating session',
-          tag: _tag,
-        );
-
-        // Try to validate the session using getSelf
-        final selfResponse = await _apiClient.getSelf();
-        if (selfResponse.isSuccess && selfResponse.data != null) {
-          Logger.log('Session is valid, user authenticated', tag: _tag);
-          _selfUser = selfResponse.data;
-          _setState(AuthState.authenticated);
-          return;
-        }
-
-        Logger.log(
-          'Session validation failed, cookies may be expired',
-          tag: _tag,
-        );
+      if (cookies.isEmpty) {
+        Logger.log('No stored session, user needs to sign in', tag: _tag);
+        _setState(AuthState.unauthenticated);
+        return;
       }
 
-      // If no valid session, check for saved credentials
-      final rememberMe = await _storageService.getRememberMe();
-      if (rememberMe) {
-        final credentials = await _storageService.getCredentials();
-        if (credentials != null) {
-          Logger.log(
-            'Found saved credentials, attempting auto-login',
-            tag: _tag,
-          );
-
-          await loginWithCredentials(
-            credentials['email']!,
-            credentials['password']!,
-            rememberMe: true,
-          );
-          return;
-        }
+      Logger.log('Found stored session, validating it', tag: _tag);
+      final selfResponse = await _apiClient.getSelf();
+      if (selfResponse.isSuccess && selfResponse.data != null) {
+        Logger.log('Session is valid, user authenticated', tag: _tag);
+        _selfUser = selfResponse.data;
+        _setState(AuthState.authenticated);
+        return;
       }
 
-      Logger.log(
-        'No saved session or credentials, user needs to login',
-        tag: _tag,
-      );
+      Logger.log('Stored session is no longer valid', tag: _tag);
       _setState(AuthState.unauthenticated);
     } catch (e, stackTrace) {
       _error = 'Failed to initialize: $e';
@@ -103,25 +73,34 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> loginWithCredentials(
-    String email,
+    String usernameOrEmail,
     String password, {
-    bool rememberMe = false,
+    required String turnstileResponse,
   }) async {
-    final trimmedEmail = email.trim();
+    final identifier = usernameOrEmail.trim();
 
-    Logger.log('loginWithCredentials called for $trimmedEmail', tag: _tag);
+    Logger.log('loginWithCredentials called', tag: _tag);
     _setState(AuthState.loading, clearError: true);
 
-    try {
-      // 1) Login to set a session cookie.
-      Logger.log('Calling API login', tag: _tag);
-      final loginResponse = await _apiClient.login(
-        LoginRequest(email: trimmedEmail, password: password),
-      );
+    if (identifier.isEmpty || password.isEmpty) {
+      _error = 'Please enter your username and password';
+      _setState(AuthState.unauthenticated);
+      return false;
+    }
 
-      Logger.log(
-        'Login response success: ${loginResponse.isSuccess}',
-        tag: _tag,
+    if (turnstileResponse.isEmpty) {
+      _error = 'Please complete the captcha first';
+      _setState(AuthState.unauthenticated);
+      return false;
+    }
+
+    try {
+      final loginResponse = await _apiClient.login(
+        LoginRequest(
+          usernameOrEmail: identifier,
+          password: password,
+          turnstileResponse: turnstileResponse,
+        ),
       );
 
       if (!loginResponse.isSuccess) {
@@ -131,25 +110,15 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
 
-      // 2) Fetch self user data and validate session
-      Logger.log('Fetching self user data', tag: _tag);
       final selfResponse = await _apiClient.getSelf();
       if (!selfResponse.isSuccess || selfResponse.data == null) {
-        _error = 'Failed to fetch user data';
+        _error = selfResponse.error ?? 'Failed to fetch user data';
         Logger.error('Failed to fetch self user data', tag: _tag);
         _setState(AuthState.unauthenticated);
         return false;
       }
 
       _selfUser = selfResponse.data;
-
-      // 4) Persist remember-me choice + credentials.
-      await _persistRememberMe(
-        rememberMe: rememberMe,
-        email: trimmedEmail,
-        password: password,
-      );
-
       Logger.log('Login successful', tag: _tag);
       _setState(AuthState.authenticated);
       return true;
@@ -173,17 +142,10 @@ class AuthProvider extends ChangeNotifier {
     try {
       await _apiClient.logout();
     } catch (e) {
-      Logger.log(
-        'Logout API call failed, continuing with local logout',
-        tag: _tag,
-      );
-      // Intentionally ignore logout errors.
+      Logger.log('Logout API call failed, clearing locally', tag: _tag);
     }
 
     await _storageService.clearSecrets();
-    await _storageService.saveRememberMe(
-      false,
-    ); // optional but keeps state consistent
 
     _selfUser = null;
     Logger.log('Logout complete', tag: _tag);
@@ -204,24 +166,6 @@ class AuthProvider extends ChangeNotifier {
 
     Logger.log('Using custom host: $customHost', tag: _tag);
     await _apiClient.setBaseUrl(customHost);
-  }
-
-  Future<void> _persistRememberMe({
-    required bool rememberMe,
-    required String email,
-    required String password,
-  }) async {
-    Logger.log('Remember me: $rememberMe', tag: _tag);
-
-    if (rememberMe) {
-      await _storageService.saveCredentials(email, password);
-      await _storageService.saveRememberMe(true);
-      return;
-    }
-
-    // Keep preference accurate and make sure secrets are cleared.
-    await _storageService.saveRememberMe(false);
-    await _storageService.clearSecrets();
   }
 
   void _setState(AuthState state, {bool clearError = false}) {
